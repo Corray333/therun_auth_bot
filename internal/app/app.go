@@ -1,10 +1,11 @@
 package app
 
 import (
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"log"
 	"log/slog"
-	"net/url"
 	"os"
 	"regexp"
 
@@ -15,7 +16,7 @@ import (
 )
 
 type Storage interface {
-	SaveCode(phone, code, type_id string) error
+	SaveCode(phone, code string, type_id int) error
 	SetPhone(chatID int64, query *types.CodeQuery) error
 	GetPhone(chatID int64) (*types.CodeQuery, error)
 }
@@ -50,44 +51,47 @@ func (app *App) Run() {
 			switch update.Message.Command() {
 			case "start":
 				// Получение аргументов командной строки
-				args := update.Message.CommandArguments()
+				args_b64 := update.Message.CommandArguments()
 
-				if args == "" {
+				if args_b64 == "" {
 					msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Для получения кода, войдите в бота через приложение TheRun.")
 					bot.Send(msg)
 					continue
 				}
-				fmt.Println()
-				fmt.Println(args)
-				fmt.Println()
-				// Парсинг URL для извлечения номера телефона
-				parsedURL, err := url.Parse("http://dummy?" + args)
+
+				decodedArgs, err := base64.StdEncoding.DecodeString(args_b64)
 				if err != nil {
+					fmt.Println("Ошибка декодирования:", err)
+					return
+				}
+				var query types.CodeQuery
+				if err := json.Unmarshal(decodedArgs, &query); err != nil {
+					fmt.Println("Ошибка декодирования:", err)
+					return
+				}
+
+				if query.Phone == "" || query.TypeID == 0 {
 					msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Для получения кода, войдите в бота через приложение TheRun.")
 					bot.Send(msg)
 					continue
 				}
-				params := parsedURL.Query()
-				phone := params.Get("phone")
-				typeId := params.Get("type_id")
 
-				if phone == "" {
-					msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Для получения кода, войдите в бота через приложение TheRun.")
-					bot.Send(msg)
-					continue
-				}
-
-				exp, err := regexp.Compile(`^\d+$`)
+				exp, err := regexp.Compile(`^\+\d{1,2}\d{9}$`)
 				if err != nil {
 					slog.Error(err.Error())
 				}
-				test := exp.Find([]byte(phone))
+				test := exp.Find([]byte(query.Phone))
+				fmt.Println(test)
 				if len(test) == 0 {
 					msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Для получения кода, войдите в бота через приложение TheRun.")
 					bot.Send(msg)
 					continue
 				}
-				app.Storage.SetPhone(update.Message.Chat.ID, &types.CodeQuery{Phone: "+" + phone, TypeID: typeId})
+				if err := app.Storage.SetPhone(update.Message.Chat.ID, &query); err != nil {
+					msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Что-то пошло не так. Повторите запрос позже.")
+					bot.Send(msg)
+					continue
+				}
 
 				// Отправка сообщения с кнопкой для отправки контакта
 				button := tgbotapi.NewKeyboardButtonContact("Получить код")
@@ -101,7 +105,7 @@ func (app *App) Run() {
 
 			}
 		} else if update.Message.Contact != nil {
-			userPhone := "+" + update.Message.Contact.PhoneNumber
+			userPhone := update.Message.Contact.PhoneNumber
 
 			saved, err := app.Storage.GetPhone(update.Message.Chat.ID)
 			if err != nil {
@@ -110,18 +114,12 @@ func (app *App) Run() {
 				continue
 			}
 
-			fmt.Println()
-			fmt.Println(userPhone, " ", saved.Phone)
-			fmt.Println()
-
 			if userPhone == saved.Phone {
 				code := utils.GenerateVerificationCode()
 
 				// Сохранение кода или выполнение другой логики
 				if err := app.Storage.SaveCode(userPhone, code, saved.TypeID); err != nil {
-					fmt.Println()
-					fmt.Println(err)
-					fmt.Println()
+
 					msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Что-то пошло не так. Повторите запрос позже.")
 					bot.Send(msg)
 					continue

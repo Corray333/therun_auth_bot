@@ -2,5 +2,5 @@ package types
 
 type CodeQuery struct {
 	Phone  string `json:"phone"`
-	TypeID string `json:"type_id"`
+	TypeID int    `json:"type_id"`
 }

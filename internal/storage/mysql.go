@@ -36,7 +36,7 @@ func NewStorage() *Storage {
 	}
 }
 
-func (store *Storage) SaveCode(phone, code, type_id string) error {
+func (store *Storage) SaveCode(phone, code string, type_id int) error {
 	fmt.Println()
 	fmt.Println(phone, type_id)
 	fmt.Println()
