@@ -81,7 +81,6 @@ func (app *App) Run() {
 					slog.Error(err.Error())
 				}
 				test := exp.Find([]byte(query.Phone))
-				fmt.Println(test)
 				if len(test) == 0 {
 					msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Для получения кода, войдите в бота через приложение TheRun.")
 					bot.Send(msg)
@@ -105,7 +104,7 @@ func (app *App) Run() {
 
 			}
 		} else if update.Message.Contact != nil {
-			userPhone := update.Message.Contact.PhoneNumber
+			userPhone := "+" + update.Message.Contact.PhoneNumber
 
 			saved, err := app.Storage.GetPhone(update.Message.Chat.ID)
 			if err != nil {

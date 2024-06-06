@@ -15,6 +15,7 @@ type Storage struct {
 }
 
 func NewStorage() *Storage {
+
 	db := sqlx.MustConnect("mysql", os.Getenv("MYSQL_CONN_STR"))
 	if err := db.Ping(); err != nil {
 		panic(err)
