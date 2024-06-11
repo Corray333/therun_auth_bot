@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"os"
 	"regexp"
+	"strings"
 
 	"github.com/Corray333/authbot/internal/storage"
 	"github.com/Corray333/authbot/internal/types"
@@ -76,12 +77,14 @@ func (app *App) Run() {
 					continue
 				}
 
-				exp, err := regexp.Compile(`^\+\d{1,2}\d{9}$`)
+				exp, err := regexp.Compile(`^\+\d{1,2}\s*\d{10}$`)
+
 				if err != nil {
 					slog.Error(err.Error())
 				}
 				test := exp.Find([]byte(query.Phone))
 				if len(test) == 0 {
+					fmt.Println(query)
 					msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Для получения кода, войдите в бота через приложение TheRun.")
 					bot.Send(msg)
 					continue
@@ -104,7 +107,7 @@ func (app *App) Run() {
 
 			}
 		} else if update.Message.Contact != nil {
-			userPhone := "+" + update.Message.Contact.PhoneNumber
+			userPhone := update.Message.Contact.PhoneNumber
 
 			saved, err := app.Storage.GetPhone(update.Message.Chat.ID)
 			if err != nil {
@@ -113,7 +116,14 @@ func (app *App) Run() {
 				continue
 			}
 
-			if userPhone == saved.Phone {
+			userPhone, err = utils.FormatPhoneNumber(userPhone, saved.Phone)
+			if err != nil {
+				msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Что-то пошло не так. Повторите запрос позже или попробуйте войти по sms.")
+				bot.Send(msg)
+				continue
+			}
+
+			if userPhone == strings.Join(strings.Split(saved.Phone, " "), "") {
 				code := utils.GenerateVerificationCode()
 
 				// Сохранение кода или выполнение другой логики
@@ -124,7 +134,14 @@ func (app *App) Run() {
 					continue
 				}
 
+				// Отправка сообщения с проверочным кодом и кнопкой для возврата в приложение
+				url := fmt.Sprintf("https://therun.app/registration-code/%s", code)
+				button := tgbotapi.NewInlineKeyboardButtonURL("Вернуться в приложение", url)
+				keyboard := tgbotapi.NewInlineKeyboardMarkup(
+					tgbotapi.NewInlineKeyboardRow(button),
+				)
 				msg := tgbotapi.NewMessage(update.Message.Chat.ID, fmt.Sprintf("Ваш проверочный код: %s", code))
+				msg.ReplyMarkup = keyboard
 				bot.Send(msg)
 			} else {
 				msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Вы ввели неверный номер. Вернитесь в приложение и опробуйте снова.")

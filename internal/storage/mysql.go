@@ -1,7 +1,6 @@
 package storage
 
 import (
-	"fmt"
 	"os"
 
 	redis "github.com/go-redis/redis"
@@ -38,9 +37,7 @@ func NewStorage() *Storage {
 }
 
 func (store *Storage) SaveCode(phone, code string, type_id int) error {
-	fmt.Println()
-	fmt.Println(phone, type_id)
-	fmt.Println()
+
 	_, err := store.DB.Queryx(`
 		INSERT INTO number_verification_requests (phone, type_id, request_id, is_active, code)
 		VALUES (?, ?, NULL, 1, ?)
